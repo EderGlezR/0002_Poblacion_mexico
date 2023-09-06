@@ -1,0 +1,76 @@
+###############################################################################################################
+###Libraries
+import pandas as pd
+import seaborn as sns
+import numpy as np
+from datetime import date, timedelta ,datetime
+import matplotlib.pyplot as plt
+import folium
+#from cartopy import CRS as ccrs
+from geodatasets import get_path
+import geopandas
+import geodatasets
+import sys
+
+###############################################################################################################
+### Archivos
+shp_path="C:/Users/g_onz/Box/07 Proyectos de Data/001 shape/Municipios/"
+graph_path="C:/Users/g_onz/Box/07 Proyectos de Data/001 shape/Municipios/"
+file="Municipios"
+
+###############################################################################################################
+####SHP file and GEOM
+pth = (shp_path+file+".shp")
+pth_prj=  (shp_path+file+".prj")
+tracts = shapefile.Reader(pth, encoding='latin')
+
+fields = [field[0] for field in tracts.fields[1:]]
+attributes = []
+geometry = []
+
+for row in tracts.shapeRecords():
+    geometry.append(shape(row.shape.__geo_interface__))
+    attributes.append(dict(zip(fields, row.record)))
+
+with open(pth_prj) as p:
+    proj4 = osr.SpatialReference(p.read()).ExportToProj4()
+print(proj4)  
+
+gdf = gpd.GeoDataFrame(data=attributes, geometry=geometry, crs=proj4)
+
+
+###############################################################################################################
+###información para DataFrame
+A=pd.read_csv("C:/Users/g_onz/Dropbox/Proyectos/Población mexico/Raw/ITER_NALCSV20.csv")
+df=A
+
+df = df[ (df['NOM_ENT']!="Total nacional") & (df['MUN']!=0)  & (df["NOM_LOC"]=="Total del Municipio") ]
+df=df[['ENTIDAD','MUN','POBTOT']]
+df['ENTIDAD']=df['ENTIDAD'].astype('str')
+df['MUN']=df['MUN'].astype('str')
+df['len_MUN']=df['MUN'].str.len()
+df['len_ENT']=df['ENTIDAD'].str.len()
+
+df['MUN_temp']=np.where(df['len_MUN']==1, "00"+df['MUN'], np.where(df['len_MUN']==2, "0"+df['MUN'], "00"+df['MUN'])    )
+df['ENT_temp']=np.where(df['len_ENT']==1, "0"+df['ENTIDAD'], df['ENTIDAD'])
+df['CVEGEO']=df['ENT_temp']+df['MUN_temp']
+df.drop(['len_MUN','len_ENT',"MUN_temp","ENT_temp","ENTIDAD","MUN"], axis=1, inplace=True)
+
+gdf=gdf.merge(df, on="CVEGEO", how='left')
+
+
+####################################################################################################################
+###Creating Map
+###
+fig, ax = plt.subplots()
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="7%", pad=0.5)
+
+gdf.plot("POBTOT", cmap="RdPu", edgecolor='gray', linewidth=0.1,
+          legend=True, aspect=1,
+          ax=ax,
+          cax=cax,
+          legend_kwds={"label":"Población" , "orientation": "vertical"},
+          missing_kwds={'color':'white'})
+ax.set_axis_off()
+ax.set_title("Distribución de la población por municipios" +"\n"+ "", size=10)
